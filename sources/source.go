@@ -10,6 +10,6 @@ import (
 
 type Sourcer interface {
     SetSyncMap(map[string]string)
-    Open() error
+    Open(interface{}) error
     Pull() *lib.EntryGroup
 }

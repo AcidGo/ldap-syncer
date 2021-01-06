@@ -144,6 +144,11 @@ func (l *LdapDest) Sync() error {
     return err
 }
 
+// func (l *LdapDest) Dump(filePath string) error {
+//     var err error
+//     res := ""
+// }
+
 func generateOpInsert(rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
     var err error
     reqList := make([]*ldaplib.AddRequest, len(rows))
