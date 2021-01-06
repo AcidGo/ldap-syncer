@@ -5,11 +5,13 @@ import (
     "errors"
 
     "github.com/AcidGo/ldap-syncer/lib"
-    "github.com/AcidGo/ldap-syncer/utils"
 )
 
 type Sourcer interface {
     SetSyncMap(map[string]string)
-    Open(interface{}) error
-    Pull() *lib.EntryGroup
+    Open(Flags) error
+    Close()
+    Pull(string) (*lib.EntryGroup, error)
 }
+
+type Flags struct {}
