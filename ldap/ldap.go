@@ -8,10 +8,9 @@ import (
     ldaplib "github.com/go-ldap/ldap/v3"
 )
 
-type Op map[*ldaplib.Entry]*ldaplib.AddRequest
-type OpUpdate Op
-type OpDelete Op
-type OpInsert Op
+type OpUpdate []*ldaplib.ModifyRequest
+type OpDelete []*ldaplib.DelRequest
+type OpInsert []*ldaplib.AddRequest
 
 type LdapDest struct {
     conn        *ldaplib.Conn
@@ -97,14 +96,63 @@ func (l *LdapDest) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
         return err
     }
 
+    reqList, err := generateOpUpdate(update)
+    if err != nil {
+        return err
+    }
 
+    reqList, err := generateOpDelete(delete)
+    if err != nil {
+        return err
+    }
+
+    reqList, err := generateOpInsert(insert)
+    if err != nil {
+        return err
+    }
+
+    return nil
 }
 
-func GenerateOpInsert(dn string, rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
+func (l *LdapDest) Sync() error {
+    var err error 
+
+    // working for update operation
+    for _, req := range l.opUpdate {
+        err = l.Modify(req)
+        if err != nil {
+            return fmt.Errorf("get an error when modify %s: %v", req.DN, err)
+        }
+    }
+
+    // working for delete operation
+    for _, req := range l.opDelete {
+        err = l.Del(req)
+        if err != nil {
+            return fmt.Errorf("get an error when delete %s: %v", req.DN, error)
+        }
+    }
+
+    // working for insert operation
+    for _, req := range l.opInsert {
+        err = l.Add(req)
+        if err != nil {
+            return fmt.Errorf("get an error when insert %s: %v", req.DN, error)
+        }
+    }
+
+    return err
+}
+
+func generateOpInsert(rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
     var err error
     reqList := make([]*ldaplib.AddRequest, len(rows))
 
     for idx, e := range rows {
+        dn := e.GetDN()
+        if dn == "" {
+            return []*ldaplib.AddRequest{}, errors.New("get an empty dn from row")
+        }
         req := ldaplib.NewAddRequest(dn, nil)
         for k, val := e.GetRow() {
             req.Attribute(k, val)
@@ -115,13 +163,37 @@ func GenerateOpInsert(dn string, rows []*lib.EntryRow) ([]*ldaplib.AddRequest, e
     return reqList, err
 }
 
-func GenerateOpUpdate(dn string, rows []*lib.EntryRow) ([]*ldaplib.ModifyRequest, error) {
-    
+func generateOpUpdate(rows []*lib.EntryRow) ([]*ldaplib.ModifyRequest, error) {
+    var err error
+    reqList := make([]*ldaplib.ModifyRequest, len(rows))
+
+    for idx, e := range rows {
+        dn := e.GetDN()
+        if dn == "" {
+            return []*ldaplib.ModifyRequest, errors.New("get an empty dn from row")
+        }
+        req := ldaplib.NewModifyRequest(dn, nil)
+        for k, val := e.GetRow() {
+            req.Replace(k, val)
+        }
+        reqList[idx] = req
+    }
+
+    return reqList, err
 }
 
-func GenerateOpDelete(dn string, rows []*lib.EntryRow) ([]*ldaplib.DelRequest, error) {
+func generateOpDelete(rows []*lib.EntryRow) ([]*ldaplib.DelRequest, error) {
     var err error
     reqList := make([]*ldaplib.AddRequest, len(rows))
 
-    
+    for idx, e := range rows {
+        dn := e.GetDN()
+        if dn == "" {
+            return []*ldaplib.DelRequest{}, errors.New("get an empty dn from row")
+        }
+        req := ldaplib.NewDelRequest(dn, nil)
+        reqList.[idx] = req
+    }
+
+    return reqList, err
 }

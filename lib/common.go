@@ -1,6 +1,9 @@
 package lib
 
 import (
+    "errors"
+    "fmt"
+
     "github.com/AcidGo/ldap-syncer/utils"
     ldaplib "github.com/go-ldap/ldap/v3"
 )
@@ -8,6 +11,7 @@ import (
 type EntryRow struct {
     pkField         string
     pkName          string
+    dn              string
     data            map[string][]string
 }
 
@@ -18,7 +22,7 @@ func NewEntryRow(pkField string, pkName string) (*EntryRow, error) {
     return &EntryRow{
         pkField: pkField, 
         pkName: pkName,
-        data: make(map[string][]string)
+        data: make(map[string][]string),
     }, nil
 }
 
@@ -26,7 +30,7 @@ func (e *EntryRow) PKField() string {
     return e.pkField
 }
 
-func (e *EntryRow) PKName() stirng {
+func (e *EntryRow) PKName() string {
     return e.pkName
 }
 
@@ -34,8 +38,17 @@ func (e *EntryRow) SetValue(k string, v []string) {
     e.data[k] = v
 }
 
-func (e *EntryRow) GetValue(k stirng) ([]string, bool) {
-    return e.data[k]
+func (e *EntryRow) SetDN(dn string) {
+    e.dn = dn
+}
+
+func (e *EntryRow) GetValue(k string) ([]string, bool) {
+    val, ok := e.data[k]
+    return val, ok
+}
+
+func (e *EntryRow) GetDN() string {
+    return e.dn
 }
 
 func (e *EntryRow) GetRow() map[string][]string {
@@ -43,8 +56,12 @@ func (e *EntryRow) GetRow() map[string][]string {
 }
 
 func (e *EntryRow) IsSame(d *EntryRow) bool {
+    if e.pkField != d.PKField() || e.pkName != d.PKName() {
+        return false
+    }
+
     dData := d.GetRow()
-    if len(e.data) != dData {
+    if len(e.data) != len(dData) {
         return false
     }
     for key, val := range e.data {
@@ -70,26 +87,32 @@ func NewEntryGroup(pkField string) (*EntryGroup, error) {
     }
     return &EntryGroup{
         pkField: pkField,
+        set: make(map[string]*EntryRow),
     }, nil
 }
 
 func (eg *EntryGroup) PKField() string {
-    return pkField
+    return eg.pkField
 }
 
 func (eg *EntryGroup) AddRow(e *EntryRow) error {
+    var err error
+
     if e.PKField() != eg.pkField {
         return errors.New("the row's primary key field is not equal for group")
     }
     eg.set[e.PKName()] = e
+
+    return err
 }
 
 func (eg *EntryGroup) GetRow(k string) (*EntryRow, bool) {
-    return set[k]
+    val, ok := eg.set[k]
+    return val, ok
 }
 
 func (eg *EntryGroup) GetGroup() map[string]*EntryRow {
-    return set
+    return eg.set
 }
 
 func LdapEntryToRow(pkField string, syncMap map[string]string, e *ldaplib.Entry) (*EntryRow, error) {
@@ -106,7 +129,7 @@ func LdapEntryToRow(pkField string, syncMap map[string]string, e *ldaplib.Entry)
         return nil, err
     }
 
-    for _, dstAttrName := syncMap {
+    for _, dstAttrName := range syncMap {
         row.SetValue(
             dstAttrName,
             e.GetAttributeValues(dstAttrName),
