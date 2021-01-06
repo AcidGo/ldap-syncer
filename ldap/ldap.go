@@ -1,8 +1,8 @@
 package ldap
 
 import (
+    "errors"
     "fmt"
-    "log"
 
     "github.com/AcidGo/ldap-syncer/lib"
     ldaplib "github.com/go-ldap/ldap/v3"
@@ -12,17 +12,17 @@ type OpUpdate []*ldaplib.ModifyRequest
 type OpDelete []*ldaplib.DelRequest
 type OpInsert []*ldaplib.AddRequest
 
-type LdapDest struct {
+type LdapDst struct {
     conn        *ldaplib.Conn
     workDn      string
     syncMap     map[string]string
     pkFiled     string
     opUpdate    OpUpdate
     opDelete    OpDelete
-    opInsert    opInsert
+    opInsert    OpInsert
 }
 
-func NewLdapDest(ldapAddr, bindUser, bindPasswd, workingDn string) (*LdapDest, error) {
+func NewLdapDst(ldapAddr, bindUser, bindPasswd, workDn string) (*LdapDst, error) {
     conn, err := ldaplib.Dial("tcp", ldapAddr)
     if err != nil {
         return nil, err
@@ -34,7 +34,7 @@ func NewLdapDest(ldapAddr, bindUser, bindPasswd, workingDn string) (*LdapDest, e
     }
 
     testRequest := ldaplib.NewSearchRequest(
-        workingDn,
+        workDn,
         ldaplib.ScopeWholeSubtree, ldaplib.NeverDerefAliases, 0, 0, false,
         "(&(objectClass=organizationalPerson))",
         []string{"dn", "cn"},
@@ -46,35 +46,35 @@ func NewLdapDest(ldapAddr, bindUser, bindPasswd, workingDn string) (*LdapDest, e
         return nil, err
     }
 
-    return &LdapDest{
+    return &LdapDst{
         conn: conn,
-        workDn: workingDn
-    }
+        workDn: workDn,
+    }, nil
 }
 
-func (l *LdapDest) Close() {
+func (l *LdapDst) Close() {
     if l.conn != nil {
         l.conn.Close()
     }
 }
 
-func (l *LdapDest) SetSyncMap(sm map[string]string) {
+func (l *LdapDst) SetSyncMap(sm map[string]string) {
     l.syncMap = sm
 }
 
-func (l *LdapDest) GetSyncMap() map[string]string {
+func (l *LdapDst) GetSyncMap() map[string]string {
     return l.syncMap
 }
 
-func (l *LdapDest) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
+func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
     var err error
 
     searchRequest := ldaplib.NewSearchRequest(
-        l.workingDn,
+        l.workDn,
         ldaplib.ScopeWholeSubtree, ldaplib.NeverDerefAliases, 0, 0, false,
         "(objectclass=*)",
         []string{},
-        nil
+        nil,
     )
 
     sr, err := l.conn.Search(searchRequest)
@@ -82,9 +82,16 @@ func (l *LdapDest) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
         return err
     }
 
-    lGroup := lib.NewEntryGroup(pkFiled)
-    for _, e := sr.Entries {
-        lRow := lib.LdapEntryToRow(pkFiled, l.syncMap, e)
+    lGroup, err := lib.NewEntryGroup(pkFiled)
+    if err != nil {
+        return err
+    }
+
+    for _, e := range sr.Entries {
+        lRow, err := lib.LdapEntryToRow(pkFiled, l.syncMap, e)
+        if err != nil {
+             return err
+        }
         err = lGroup.AddRow(lRow)
         if err != nil {
             return err
@@ -96,30 +103,41 @@ func (l *LdapDest) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
         return err
     }
 
-    reqList, err := generateOpUpdate(update)
+    updateUeqList, err := generateOpUpdate(update)
     if err != nil {
         return err
     }
+    l.opUpdate = updateUeqList
 
-    reqList, err := generateOpDelete(delete)
+    deleteReqList, err := generateOpDelete(delete)
     if err != nil {
         return err
     }
+    l.opDelete = deleteReqList
 
-    reqList, err := generateOpInsert(insert)
+    insertReqList, err := generateOpInsert(insert)
     if err != nil {
         return err
     }
+    l.opInsert = insertReqList
 
     return nil
 }
 
-func (l *LdapDest) Sync() error {
-    var err error 
+func (l *LdapDst) Sync() error {
+    var err error
+
+    // working for insert operation
+    for _, req := range l.opInsert {
+        err = l.conn.Add(req)
+        if err != nil {
+            return fmt.Errorf("get an error when insert %s: %v", req.DN, err)
+        }
+    }
 
     // working for update operation
     for _, req := range l.opUpdate {
-        err = l.Modify(req)
+        err = l.conn.Modify(req)
         if err != nil {
             return fmt.Errorf("get an error when modify %s: %v", req.DN, err)
         }
@@ -127,27 +145,14 @@ func (l *LdapDest) Sync() error {
 
     // working for delete operation
     for _, req := range l.opDelete {
-        err = l.Del(req)
+        err = l.conn.Del(req)
         if err != nil {
-            return fmt.Errorf("get an error when delete %s: %v", req.DN, error)
-        }
-    }
-
-    // working for insert operation
-    for _, req := range l.opInsert {
-        err = l.Add(req)
-        if err != nil {
-            return fmt.Errorf("get an error when insert %s: %v", req.DN, error)
+            return fmt.Errorf("get an error when delete %s: %v", req.DN, err)
         }
     }
 
     return err
 }
-
-// func (l *LdapDest) Dump(filePath string) error {
-//     var err error
-//     res := ""
-// }
 
 func generateOpInsert(rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
     var err error
@@ -159,7 +164,7 @@ func generateOpInsert(rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
             return []*ldaplib.AddRequest{}, errors.New("get an empty dn from row")
         }
         req := ldaplib.NewAddRequest(dn, nil)
-        for k, val := e.GetRow() {
+        for k, val := range e.GetRow() {
             req.Attribute(k, val)
         }
         reqList[idx] = req
@@ -175,10 +180,10 @@ func generateOpUpdate(rows []*lib.EntryRow) ([]*ldaplib.ModifyRequest, error) {
     for idx, e := range rows {
         dn := e.GetDN()
         if dn == "" {
-            return []*ldaplib.ModifyRequest, errors.New("get an empty dn from row")
+            return []*ldaplib.ModifyRequest{}, errors.New("get an empty dn from row")
         }
         req := ldaplib.NewModifyRequest(dn, nil)
-        for k, val := e.GetRow() {
+        for k, val := range e.GetRow() {
             req.Replace(k, val)
         }
         reqList[idx] = req
@@ -189,7 +194,7 @@ func generateOpUpdate(rows []*lib.EntryRow) ([]*ldaplib.ModifyRequest, error) {
 
 func generateOpDelete(rows []*lib.EntryRow) ([]*ldaplib.DelRequest, error) {
     var err error
-    reqList := make([]*ldaplib.AddRequest, len(rows))
+    reqList := make([]*ldaplib.DelRequest, len(rows))
 
     for idx, e := range rows {
         dn := e.GetDN()
@@ -197,7 +202,7 @@ func generateOpDelete(rows []*lib.EntryRow) ([]*ldaplib.DelRequest, error) {
             return []*ldaplib.DelRequest{}, errors.New("get an empty dn from row")
         }
         req := ldaplib.NewDelRequest(dn, nil)
-        reqList.[idx] = req
+        reqList[idx] = req
     }
 
     return reqList, err

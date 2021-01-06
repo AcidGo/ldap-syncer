@@ -49,3 +49,13 @@ func IsSameStringList(a, b []string) bool {
 
     return true
 }
+
+func StrToSyncMap(s string) map[string]string {
+    sm := make(map[string]string)
+    for _, sub := range strings.Split(s, ",") {
+        k := strings.Split(sub, ":")[0]
+        v := strings.Split(sub, ":")[1]
+        sm[k] = v
+    }
+    return sm
+}

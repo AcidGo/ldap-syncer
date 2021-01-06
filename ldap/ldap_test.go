@@ -8,7 +8,7 @@ func getLdapDest() *LdapDest {
     l, err := NewLdapDest(
         "192.168.66.131:389",
         "cn=admin,dc=acidgo,dc=com",
-        "suan",
+        "passwd",
         "ou=Users,dc=acidgo,dc=com",
     )
     if err != nil {
