@@ -4,6 +4,7 @@ import (
     "fmt"
     "log"
 
+    "github.com/AcidGo/ldap-syncer/sources"
     ldaplib "github.com/go-ldap/ldap/v3"
 )
 
@@ -11,8 +12,6 @@ type Op map[*ldaplib.Entry]*ldaplib.AddRequest
 type OpUpdate Op
 type OpDelete Op
 type OpInsert Op
-
-type EntryRow map[string][]string
 
 type LdapDest struct {
     conn        *ldaplib.Conn
@@ -67,12 +66,8 @@ func (l *LdapDest) GetSyncMap() map[string]string {
     return l.syncMap
 }
 
-func (l *LdapDest) Parse(sourceSet map[string]EntryRow) error {
-    dnData := make([]map[string][]string)
-    needInsertSet := make([]map[string][]string)
-    for k, v := range sourceSet {
-        needInsertSet[k] = v
-    }
+func (l *LdapDest) Parse(sourceSet *SourceSetter) error {
+    var err error
 
     searchRequest := ldaplib.NewSearchRequest(
         l.workingDn,
@@ -87,15 +82,19 @@ func (l *LdapDest) Parse(sourceSet map[string]EntryRow) error {
         return err
     }
 
-    for _, entry := range sr.Entries {
-        attrMap := make(map[string][]string)
-        for _, attr := range entry.Attributes {
-            attrMap[attr.Name] = attrMap.Values
+    for _, e := range sr.Entries {
+        eDn := e.DN
+        eAttrRow := source.NewEntryRow()
+        for _, a := range e.Attributes {
+            eAttrRow.AddValues(a.Name, a.Values)
         }
-        dnData = append(dnData, attrMap)
+        if val, ok := eAttrRow.GetValues(sourceSet.PrimaryKey()); ok {
+            if 
+        } else {
+            return fmt.Errorf("not found SourceSetter primary key %v for lookup", sourceSet.PrimaryKey())
+        }
     }
-
-
 }
+
 
 func (l *LdapDest) newAddRequest()
