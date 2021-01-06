@@ -49,16 +49,3 @@ func IsSameStringList(a, b []string) bool {
 
     return true
 }
-
-func SetOpCheck(dst map[string][]string, srcSet []map[string][]string) (bool, map[string][]string) {
-    l := len(dst)
-
-    for dKey, dVal := range dst {
-        for _, src := range srcSet {
-            cnt := 0
-            if sVal, ok := src[dKey]; ok && sVal == dVal {
-                cnt++
-            }
-        }
-    }
-}
