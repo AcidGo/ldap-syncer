@@ -117,7 +117,7 @@ func (eg *EntryGroup) GetGroup() map[string]*EntryRow {
 
 func LdapEntryToRow(pkField string, syncMap map[string]string, e *ldaplib.Entry) (*EntryRow, error) {
     if pkField == "" {
-        return nil, errors.New("the field of primary key is emtpy")
+        return nil, errors.New("the field of primary key filed is emtpy")
     }
 
     pkName := e.GetAttributeValue(pkField)
@@ -137,6 +137,44 @@ func LdapEntryToRow(pkField string, syncMap map[string]string, e *ldaplib.Entry)
     }
 
     return row, nil
+}
+
+func MapSliceToGroup(pkField string, ms []map[string]string) (*EntryGroup, error) {
+    if pkField == "" {
+        return nil, errors.New("the field of primary key filed is emtpy")
+    }
+
+    eg, err := NewEntryGroup(pkField)
+    if err != nil {
+        return nil, err
+    }
+
+    for _, m := range ms {
+        pkName, ok := m[pkField]
+        if !ok {
+            return nil, fmt.Errorf("not found the primary key field: %s", pkField)
+        }
+
+        er, err := NewEntryRow(pkField, pkName)
+        if err != nil {
+            return nil ,err
+        }
+
+        for key, val := range m {
+            if key == pkField {
+                continue
+            }
+
+            er.SetValue(
+                key,
+                []string{val},
+            )
+        }
+
+        eg.AddRow(er)
+    }
+
+    return eg, nil
 }
 
 func EntryGroupDiff(src, dst *EntryGroup) (insert, update, delete []*EntryRow, err error) {

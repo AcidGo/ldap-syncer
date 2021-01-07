@@ -13,11 +13,11 @@ import (
 
 var (
     setting = src_mysql.MySQLFlags{
-        connAddr:       flag.String("mysql-addr", "127.0.0.1:389", "MySQL listener to be connected"),
-        username:       flag.String("mysql-user", "", "MySQL connect user certificate"),
-        password:       flag.String("mysql-passwd", "", "MySQL connect user's password certificate"),
-        targetDB:       flag.String("mysql-db", "", "MySQL target database for working"),
-        targetTable:    flag.String("mysql-tb", "", "MySQL target table for working"),
+        ConnAddr:       flag.String("mysql-addr", "127.0.0.1:389", "MySQL listener to be connected"),
+        Username:       flag.String("mysql-user", "", "MySQL connect user certificate"),
+        Password:       flag.String("mysql-passwd", "", "MySQL connect user's password certificate"),
+        TargetDB:       flag.String("mysql-db", "", "MySQL target database for working"),
+        TargetTable:    flag.String("mysql-tb", "", "MySQL target table for working"),
     }
 
     ldapAddr        = flag.String("ldap-addr", "127.0.0.1:389", "LDAP listener to be connected")
@@ -54,7 +54,7 @@ func main() {
     lDst.SetSyncMap(syncMap)
     log.Println("setten syncmap for dest LDAP")
 
-    source = new(src_file.FileSrc)
+    source = new(src_mysql.MySQLSrc)
     source.SetSyncMap(syncMap)
     log.Println("setten syncmap for sourcer")
     err = source.Open(setting)

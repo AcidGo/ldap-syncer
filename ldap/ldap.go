@@ -36,7 +36,7 @@ func NewLdapDst(ldapAddr, bindUser, bindPasswd, workDn string) (*LdapDst, error)
     testRequest := ldaplib.NewSearchRequest(
         workDn,
         ldaplib.ScopeWholeSubtree, ldaplib.NeverDerefAliases, 0, 0, false,
-        "(&(objectClass=organizationalPerson))",
+        "(objectclass=*)",
         []string{"dn", "cn"},
         nil,
     )
