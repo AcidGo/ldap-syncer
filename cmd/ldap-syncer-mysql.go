@@ -26,6 +26,7 @@ var (
     syncMapStr      = flag.String("sync-map", "", "attributes mapping when sync to LDAP")
     pkField         = flag.String("pk", "", "specified key field for selecting row")
     workingDn       = flag.String("dn", "", "into specified LDAP DN for workspace")
+    dryRun          = flag.Bool("dry-run", false, "dry-run mode, only print parsing result, not really execute")
 )
 
 var (
@@ -77,6 +78,15 @@ func main() {
         log.Fatal(err)
     }
     log.Println("parsing dest LDAP with pulled group is sucessful")
+
+    if *dryRun {
+        log.Println("only with dry-run mode, no execute the parsing result")
+        err = lDst.ParsePrint()
+        if err != nil {
+            log.Fatal(err)
+        }
+        return 
+    }
 
     log.Println("starting sync from source to destation ......")
     err = lDst.Sync()

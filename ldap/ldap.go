@@ -3,6 +3,7 @@ package ldap
 import (
     "errors"
     "fmt"
+    "log"
 
     "github.com/AcidGo/ldap-syncer/lib"
     ldaplib "github.com/go-ldap/ldap/v3"
@@ -20,6 +21,7 @@ type LdapDst struct {
     opUpdate    OpUpdate
     opDelete    OpDelete
     opInsert    OpInsert
+    hasParse    bool
 }
 
 func NewLdapDst(ldapAddr, bindUser, bindPasswd, workDn string) (*LdapDst, error) {
@@ -121,6 +123,7 @@ func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
     }
     l.opInsert = insertReqList
 
+    l.hasParse = true
     return nil
 }
 
@@ -152,6 +155,46 @@ func (l *LdapDst) Sync() error {
     }
 
     return err
+}
+
+func (l *LdapDst) ParsePrint() error {
+    if !l.hasParse {
+        return errors.New("the LDAP is not parsed or parsed failly")
+    }
+    log.Println("----------> ParsePrint <----------")
+
+    // print for insert operation
+    log.Println("########## insert operation:")
+    for _, req := range l.opInsert {
+        log.Printf("DN: %s\n", req.DN)
+        log.Println("OP:")
+        for _, a := range req.Attributes {
+            log.Printf("\t%v\n", a.Vals)
+        }
+    }
+    log.Println("########## EOF insert operation")
+
+    // print for update operation
+    log.Println("########## update operation:")
+    for _, req := range l.opUpdate {
+        log.Printf("DN: %s\n", req.DN)
+        log.Println("OP:")
+        for _, c := range req.Changes {
+            log.Printf("\t%v\n", c.Modification.Vals)
+        }
+    }
+    log.Println("########## EOF update operation")
+
+    // print for delete operation
+    log.Println("########## delete operation:")
+    for _, req := range l.opInsert {
+        log.Printf("DN: %s\n", req.DN)
+    }
+    log.Println("########## EOF delete operation")
+
+    log.Println("--------> EOF ParsePrint <--------")
+
+    return nil
 }
 
 func generateOpInsert(rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
