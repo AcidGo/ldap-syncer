@@ -8,6 +8,10 @@ import (
     ldaplib "github.com/go-ldap/ldap/v3"
 )
 
+var (
+    PrimaryFieldNotFound        = errors.New("primary key not found")
+)
+
 type EntryRow struct {
     pkField         string
     pkName          string
@@ -120,9 +124,14 @@ func LdapEntryToRow(pkField string, syncMap map[string]string, e *ldaplib.Entry)
         return nil, errors.New("the field of primary key filed is emtpy")
     }
 
+    // for _, a := range e.Attributes {
+    //     fmt.Println(a.Name)
+    //     fmt.Println(a.Values)
+    // }
+
     pkName := e.GetAttributeValue(pkField)
     if pkName == "" {
-        return nil, fmt.Errorf("get attribute value is empty with primary key %s", pkField)
+        return nil, PrimaryFieldNotFound
     }
     row, err := NewEntryRow(pkField, pkName)
     if err != nil {

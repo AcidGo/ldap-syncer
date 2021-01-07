@@ -111,9 +111,14 @@ func TestEntryGroupDiff(t *testing.T) {
     er2_2 := getEntryRow(2, false)
     er2_3 := getEntryRow(3, false)
 
-    eg1.AddRow(er1_1)
     eg2.AddRow(er2_1)
     i, u, d, err := EntryGroupDiff(eg1, eg2)
+    if len(i) != 0 || len(u) != 0 || len(d) != 1 || err != nil {
+        t.Errorf("EntryGroupDiff test-0 failed")
+    }
+
+    eg1.AddRow(er1_1)
+    i, u, d, err = EntryGroupDiff(eg1, eg2)
     if len(i) != 0 || len(u) != 0 || len(d) != 0 || err != nil {
         t.Errorf("EntryGroupDiff test-1 failed")
     }

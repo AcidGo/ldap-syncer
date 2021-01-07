@@ -4,6 +4,7 @@ import (
     "errors"
     "fmt"
     "log"
+    "strings"
 
     "github.com/AcidGo/ldap-syncer/lib"
     ldaplib "github.com/go-ldap/ldap/v3"
@@ -21,7 +22,6 @@ type LdapDst struct {
     opUpdate    OpUpdate
     opDelete    OpDelete
     opInsert    OpInsert
-    hasParse    bool
 }
 
 func NewLdapDst(ldapAddr, bindUser, bindPasswd, workDn string) (*LdapDst, error) {
@@ -39,7 +39,7 @@ func NewLdapDst(ldapAddr, bindUser, bindPasswd, workDn string) (*LdapDst, error)
         workDn,
         ldaplib.ScopeWholeSubtree, ldaplib.NeverDerefAliases, 0, 0, false,
         "(objectclass=*)",
-        []string{"dn"},
+        []string{},
         nil,
     )
 
@@ -70,6 +70,7 @@ func (l *LdapDst) GetSyncMap() map[string]string {
 
 func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
     var err error
+    var dnPrefix string
 
     searchRequest := ldaplib.NewSearchRequest(
         l.workDn,
@@ -91,9 +92,18 @@ func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
 
     for _, e := range sr.Entries {
         lRow, err := lib.LdapEntryToRow(pkFiled, l.syncMap, e)
-        if err != nil {
+        if err == lib.PrimaryFieldNotFound {
+            log.Printf("ignore dn [%s] because of empty primary key\n", e.DN)
+            continue
+        } else if err != nil {
              return err
         }
+
+        if dnPrefix == "" && strings.Index(e.DN, l.workDn) != -1 {
+            dnPrefix = strings.Split(strings.Split(e.DN, l.workDn)[0], "=")[0]
+        }
+
+        lRow.SetDN(e.DN)
         err = lGroup.AddRow(lRow)
         if err != nil {
             return err
@@ -104,6 +114,9 @@ func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
     if err != nil {
         return err
     }
+    log.Printf("after LDAP entry group diff, get length of insert is: %d\n", len(insert))
+    log.Printf("after LDAP entry group diff, get length of update is: %d\n", len(update))
+    log.Printf("after LDAP entry group diff, get length of delete is: %d\n", len(delete))
 
     updateUeqList, err := generateOpUpdate(update)
     if err != nil {
@@ -117,13 +130,12 @@ func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
     }
     l.opDelete = deleteReqList
 
-    insertReqList, err := generateOpInsert(insert)
+    insertReqList, err := generateOpInsert(l.workDn, dnPrefix, insert)
     if err != nil {
         return err
     }
     l.opInsert = insertReqList
 
-    l.hasParse = true
     return nil
 }
 
@@ -158,24 +170,21 @@ func (l *LdapDst) Sync() error {
 }
 
 func (l *LdapDst) ParsePrint() error {
-    if !l.hasParse {
-        return errors.New("the LDAP is not parsed or parsed failly")
-    }
     log.Println("----------> ParsePrint <----------")
 
     // print for insert operation
-    log.Println("########## insert operation:")
+    log.Printf("########## insert operation: %d\n", len(l.opInsert))
     for _, req := range l.opInsert {
         log.Printf("DN: %s\n", req.DN)
         log.Println("OP:")
         for _, a := range req.Attributes {
-            log.Printf("\t%v\n", a.Vals)
+            log.Printf("\t%s: %v\n", a.Type, a.Vals)
         }
     }
     log.Println("########## EOF insert operation")
 
     // print for update operation
-    log.Println("########## update operation:")
+    log.Printf("########## update operation: %d\n", len(l.opUpdate))
     for _, req := range l.opUpdate {
         log.Printf("DN: %s\n", req.DN)
         log.Println("OP:")
@@ -186,8 +195,8 @@ func (l *LdapDst) ParsePrint() error {
     log.Println("########## EOF update operation")
 
     // print for delete operation
-    log.Println("########## delete operation:")
-    for _, req := range l.opInsert {
+    log.Printf("########## delete operation: %d\n", len(l.opDelete))
+    for _, req := range l.opDelete {
         log.Printf("DN: %s\n", req.DN)
     }
     log.Println("########## EOF delete operation")
@@ -197,12 +206,11 @@ func (l *LdapDst) ParsePrint() error {
     return nil
 }
 
-func generateOpInsert(rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
+func generateOpInsert(dn string, rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
     var err error
     reqList := make([]*ldaplib.AddRequest, len(rows))
 
     for idx, e := range rows {
-        dn := e.GetDN()
         if dn == "" {
             return []*ldaplib.AddRequest{}, errors.New("get an empty dn from row")
         }
