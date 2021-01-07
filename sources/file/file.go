@@ -24,6 +24,7 @@ func (src *FileSrc) Open(i interface{}) error {
     if !ok {
         return errors.New("expecting src_file.FileFLags")
     }
+
     if _, err := os.Stat(*f.Path); os.IsNotExist(err) {
         return err
     }
