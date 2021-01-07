@@ -37,7 +37,7 @@ func NewLdapDst(ldapAddr, bindUser, bindPasswd, workDn string) (*LdapDst, error)
         workDn,
         ldaplib.ScopeWholeSubtree, ldaplib.NeverDerefAliases, 0, 0, false,
         "(objectclass=*)",
-        []string{"dn", "cn"},
+        []string{"dn"},
         nil,
     )
 
