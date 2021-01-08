@@ -7,21 +7,32 @@ import (
     "strings"
 
     "github.com/AcidGo/ldap-syncer/lib"
+    "github.com/AcidGo/ldap-syncer/utils"
     ldaplib "github.com/go-ldap/ldap/v3"
 )
+
+var passwdFieldSample = []string {
+    "userpassword",
+    "userpasswd",
+    "passwd",
+    "password",
+}
 
 type OpUpdate []*ldaplib.ModifyRequest
 type OpDelete []*ldaplib.DelRequest
 type OpInsert []*ldaplib.AddRequest
 
 type LdapDst struct {
-    conn        *ldaplib.Conn
-    workDn      string
-    syncMap     map[string]string
-    pkFiled     string
-    opUpdate    OpUpdate
-    opDelete    OpDelete
-    opInsert    OpInsert
+    conn            *ldaplib.Conn
+    workDn          string
+    syncMap         map[string]string
+    pkFiled         string
+    usedobjectClass []string
+    encryptType     string
+    hash            cryptFunc
+    opUpdate        OpUpdate
+    opDelete        OpDelete
+    opInsert        OpInsert
 }
 
 func NewLdapDst(ldapAddr, bindUser, bindPasswd, workDn string) (*LdapDst, error) {
@@ -64,13 +75,30 @@ func (l *LdapDst) SetSyncMap(sm map[string]string) {
     l.syncMap = sm
 }
 
+func (l *LdapDst) SetUsedObjectClass(oc []string) {
+    l.usedobjectClass = oc
+}
+
 func (l *LdapDst) GetSyncMap() map[string]string {
     return l.syncMap
 }
 
+func (l *LdapDst) SelectEncryptType(t string) error {
+    var err error
+
+    switch t {
+    case "md5crypt":
+        l.encryptType = "{CRYPT}"
+        l.hash = md5cryptFunc
+    default:
+        err = fmt.Errorf("not support the hash encrypt type: %s", t)
+    }
+
+    return err
+}
+
 func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
     var err error
-    var dnPrefix string
 
     searchRequest := ldaplib.NewSearchRequest(
         l.workDn,
@@ -89,6 +117,7 @@ func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
     if err != nil {
         return err
     }
+    l.pkFiled = pkFiled
 
     for _, e := range sr.Entries {
         lRow, err := lib.LdapEntryToRow(pkFiled, l.syncMap, e)
@@ -99,10 +128,6 @@ func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
              return err
         }
 
-        if dnPrefix == "" && strings.Index(e.DN, l.workDn) != -1 {
-            dnPrefix = strings.Split(strings.Split(e.DN, l.workDn)[0], "=")[0]
-        }
-
         lRow.SetDN(e.DN)
         err = lGroup.AddRow(lRow)
         if err != nil {
@@ -110,7 +135,7 @@ func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
         }
     }
 
-    insert, update, delete, err := lib.EntryGroupDiff(srcGroup, lGroup)
+    insert, update, delete, err := lib.EntryGroupDiff(l.syncMap, srcGroup, lGroup)
     if err != nil {
         return err
     }
@@ -118,19 +143,19 @@ func (l *LdapDst) Parse(pkFiled string, srcGroup *lib.EntryGroup) error {
     log.Printf("after LDAP entry group diff, get length of update is: %d\n", len(update))
     log.Printf("after LDAP entry group diff, get length of delete is: %d\n", len(delete))
 
-    updateUeqList, err := generateOpUpdate(update)
+    updateUeqList, err := l.generateOpUpdate(update)
     if err != nil {
         return err
     }
     l.opUpdate = updateUeqList
 
-    deleteReqList, err := generateOpDelete(delete)
+    deleteReqList, err := l.generateOpDelete(delete)
     if err != nil {
         return err
     }
     l.opDelete = deleteReqList
 
-    insertReqList, err := generateOpInsert(l.workDn, dnPrefix, insert)
+    insertReqList, err := l.generateOpInsert(insert)
     if err != nil {
         return err
     }
@@ -206,35 +231,65 @@ func (l *LdapDst) ParsePrint() error {
     return nil
 }
 
-func generateOpInsert(dn string, rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
+func (l *LdapDst) generateOpInsert(rows []*lib.EntryRow) ([]*ldaplib.AddRequest, error) {
     var err error
     reqList := make([]*ldaplib.AddRequest, len(rows))
+
+    dn := l.workDn
+    pkFiled := l.pkFiled
 
     for idx, e := range rows {
         if dn == "" {
             return []*ldaplib.AddRequest{}, errors.New("get an empty dn from row")
         }
-        req := ldaplib.NewAddRequest(dn, nil)
+        dnInsert := fmt.Sprintf("%s=%s,%s",pkFiled, e.PKName(), dn)
+        req := ldaplib.NewAddRequest(dnInsert, nil)
         for k, val := range e.GetRow() {
+            if utils.FindStrSlice(passwdFieldSample, strings.ToLower(k)) != -1 {
+                var _t []string
+                for _, tt := range val {
+                    hashStr, err := l.hash(tt)
+                    if err != nil {
+                        return []*ldaplib.AddRequest{}, err
+                    }
+                    _t = append(_t, l.encryptType + hashStr)
+                }
+                val = _t
+            }
             req.Attribute(k, val)
         }
+        req.Attribute("objectClass", l.usedobjectClass)
         reqList[idx] = req
     }
 
     return reqList, err
 }
 
-func generateOpUpdate(rows []*lib.EntryRow) ([]*ldaplib.ModifyRequest, error) {
+func (l *LdapDst) generateOpUpdate(rows []*lib.EntryRow) ([]*ldaplib.ModifyRequest, error) {
     var err error
     reqList := make([]*ldaplib.ModifyRequest, len(rows))
 
+    dn := l.workDn
+    pkFiled := l.pkFiled
+
     for idx, e := range rows {
-        dn := e.GetDN()
         if dn == "" {
             return []*ldaplib.ModifyRequest{}, errors.New("get an empty dn from row")
         }
-        req := ldaplib.NewModifyRequest(dn, nil)
+        dnUpdate := fmt.Sprintf("%s=%s,%s",pkFiled, e.PKName(), dn)
+        req := ldaplib.NewModifyRequest(dnUpdate, nil)
         for k, val := range e.GetRow() {
+            if utils.FindStrSlice(passwdFieldSample, strings.ToLower(k)) != -1 {
+                var _t []string
+                for _, tt := range val {
+                    hashStr, err := l.hash(tt)
+                    if err != nil {
+                        return []*ldaplib.ModifyRequest{}, err
+                    }
+                    _t = append(_t, l.encryptType + hashStr)
+                }
+                val = _t
+            }
             req.Replace(k, val)
         }
         reqList[idx] = req
@@ -243,7 +298,7 @@ func generateOpUpdate(rows []*lib.EntryRow) ([]*ldaplib.ModifyRequest, error) {
     return reqList, err
 }
 
-func generateOpDelete(rows []*lib.EntryRow) ([]*ldaplib.DelRequest, error) {
+func (l *LdapDst) generateOpDelete(rows []*lib.EntryRow) ([]*ldaplib.DelRequest, error) {
     var err error
     reqList := make([]*ldaplib.DelRequest, len(rows))
 

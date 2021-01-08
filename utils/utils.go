@@ -59,3 +59,19 @@ func StrToSyncMap(s string) map[string]string {
     }
     return sm
 }
+
+func StrToSyncPk(s string) (string, string) {
+    a := strings.Split(s, ":")[0]
+    b := strings.Split(s, ":")[1]
+    return a, b
+}
+
+func FindStrSlice(sl []string, s string) int {
+    for idx, val := range sl {
+        if val == s {
+            return idx
+        }
+    }
+
+    return -1
+}

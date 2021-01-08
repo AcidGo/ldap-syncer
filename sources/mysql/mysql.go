@@ -71,11 +71,11 @@ func (src *MySQLSrc) Close() {
 
 func (src *MySQLSrc) Pull(pkField string) (*lib.EntryGroup, error) {
     fileds := pkField
-    for _, val := range src.syncMap {
-        if val == pkField {
+    for key, _ := range src.syncMap {
+        if key == pkField {
             continue
         }
-        fileds = fmt.Sprintf("%s, %s", fileds, val)
+        fileds = fmt.Sprintf("%s, %s", fileds, key)
     }
 
     sql := fmt.Sprintf("select %s from %s", fileds, src.targetTable)

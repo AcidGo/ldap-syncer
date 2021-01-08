@@ -59,6 +59,15 @@ func (e *EntryRow) GetRow() map[string][]string {
     return e.data
 }
 
+func (e *EntryRow) Reflect(syncMap map[string]string) {
+    for k, v := range e.data {
+        if mVal, ok := syncMap[k]; ok {
+            delete(e.data, k)
+            e.data[mVal] = v
+        }
+    }
+}
+
 func (e *EntryRow) IsSame(d *EntryRow) bool {
     if e.pkField != d.PKField() || e.pkName != d.PKName() {
         return false
@@ -186,17 +195,14 @@ func MapSliceToGroup(pkField string, ms []map[string]string) (*EntryGroup, error
     return eg, nil
 }
 
-func EntryGroupDiff(src, dst *EntryGroup) (insert, update, delete []*EntryRow, err error) {
-    if src.PKField() != dst.PKField() {
-        err = errors.New("both group's primary key field is different")
-        return 
-    }
-
+func EntryGroupDiff(sm map[string]string, src, dst *EntryGroup) (insert, update, delete []*EntryRow, err error) {
     for srcName, srcRow := range src.GetGroup() {
         if dstRow, ok := dst.GetRow(srcName); !ok {
+            srcRow.Reflect(sm)
             insert = append(insert, srcRow)
         } else {
             if !srcRow.IsSame(dstRow) {
+                srcRow.Reflect(sm)
                 update = append(update, srcRow)
             }
         }
