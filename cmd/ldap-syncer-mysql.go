@@ -2,7 +2,9 @@ package main
 
 import (
     "flag"
+    "fmt"
     "log"
+    "os"
     "strings"
 
     "github.com/AcidGo/ldap-syncer/ldap"
@@ -10,6 +12,16 @@ import (
     "github.com/AcidGo/ldap-syncer/sources/mysql"
     "github.com/AcidGo/ldap-syncer/sources/source"
     "github.com/AcidGo/ldap-syncer/utils"
+)
+
+var (
+    // app info
+    AppName                             string
+    AppAuthor                           string
+    AppVersion                          string
+    AppGitCommitHash                    string
+    AppBuildTime                        string
+    AppGoVersion                        string
 )
 
 var (
@@ -43,7 +55,22 @@ var (
     err             error
 )
 
+func flagUsage() {
+    usageMsg := fmt.Sprintf(`%s
+Version: %s
+Author: %s
+GitCommit: %s
+BuildTIme: %s
+GoVersion: %s
+Options:
+`, AppName, AppVersion, AppAuthor, AppGitCommitHash, AppBuildTime, AppGoVersion)
+
+    fmt.Fprintf(os.Stderr, usageMsg)
+    flag.PrintDefaults()
+}
+
 func main() {
+    flag.Usage = flagUsage
     flag.Parse()
     if *ldapBindDN == "" || *ldapBindPasswd == "" || *pkMapStr == "" || *workingDn == "" {
         log.Fatal("the args is invalid")
