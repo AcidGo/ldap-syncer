@@ -2,7 +2,9 @@ package main
 
 import (
     "flag"
+    "fmt"
     "log"
+    "os"
     "strings"
 
     "github.com/AcidGo/ldap-syncer/ldap"
@@ -13,8 +15,18 @@ import (
 )
 
 var (
+    // app info
+    AppName                             string
+    AppAuthor                           string
+    AppVersion                          string
+    AppGitCommitHash                    string
+    AppBuildTime                        string
+    AppGoVersion                        string
+)
+
+var (
     setting = src_mysql.MySQLFlags{
-        ConnAddr:       flag.String("mysql-addr", "127.0.0.1:389", "MySQL listener to be connected"),
+        ConnAddr:       flag.String("mysql-addr", "127.0.0.1:3306", "MySQL listener to be connected"),
         Username:       flag.String("mysql-user", "", "MySQL connect user certificate"),
         Password:       flag.String("mysql-passwd", "", "MySQL connect user's password certificate"),
         TargetDB:       flag.String("mysql-db", "", "MySQL target database for working"),
@@ -43,7 +55,22 @@ var (
     err             error
 )
 
+func flagUsage() {
+    usageMsg := fmt.Sprintf(`%s
+Version: %s
+Author: %s
+GitCommit: %s
+BuildTIme: %s
+GoVersion: %s
+Options:
+`, AppName, AppVersion, AppAuthor, AppGitCommitHash, AppBuildTime, AppGoVersion)
+
+    fmt.Fprintf(os.Stderr, usageMsg)
+    flag.PrintDefaults()
+}
+
 func main() {
+    flag.Usage = flagUsage
     flag.Parse()
     if *ldapBindDN == "" || *ldapBindPasswd == "" || *pkMapStr == "" || *workingDn == "" {
         log.Fatal("the args is invalid")

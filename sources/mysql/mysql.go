@@ -91,7 +91,7 @@ func (src *MySQLSrc) Pull(pkField string) (*lib.EntryGroup, error) {
     }
 
     var res []map[string]string
-    if rows.Next() {
+    for rows.Next() {
         data := make(map[string]string)
         columns := make([]string, len(cols))
         columnPointers := make([]interface{}, len(cols))
@@ -99,7 +99,10 @@ func (src *MySQLSrc) Pull(pkField string) (*lib.EntryGroup, error) {
             columnPointers[i] = &columns[i]
         }
 
-        rows.Scan(columnPointers...)
+        err = rows.Scan(columnPointers...)
+        if err != nil {
+            return nil, err
+        }
 
         for i, colName := range cols {
             data[colName] = columns[i]
@@ -121,5 +124,5 @@ func (src *MySQLSrc) generateDsn(user, passwd, addr, db string) (string, error) 
         return "", fmt.Errorf("invalid mysql connect addr: %s", addr)
     }
 
-    return fmt.Sprintf("%s:%s@tcp(%s)/%s", user, passwd, addr, db), nil
+    return fmt.Sprintf("%s:%s@tcp(%s)/%s?autocommit=true", user, passwd, addr, db), nil
 }
