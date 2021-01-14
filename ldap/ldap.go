@@ -313,3 +313,15 @@ func (l *LdapDst) generateOpDelete(rows []*lib.EntryRow) ([]*ldaplib.DelRequest,
 
     return reqList, err
 }
+
+func (l *LdapDst) GetOpUpdate() OpUpdate {
+    return l.opUpdate
+}
+
+func (l *LdapDst) GetOpInsert() OpInsert {
+    return l.opInsert
+}
+
+func (l *LdapDst) GetOpDelete() OpDelete {
+    return l.opDelete
+}

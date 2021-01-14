@@ -1,4 +1,4 @@
-package zabbix
+package extra_zabbix
 
 import (
     "bytes"

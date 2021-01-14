@@ -6,9 +6,11 @@ import (
 )
 
 type Extrar interface {
-    BindSource(sources.sourcer)
-    BindLDAP(*ldap.LdapDst)
-    Parse() error
+    BindSource(sources.sourcer) error
+    BindLdap(*ldap.LdapDst) error
+    Parse(interface{}) error
     ParsePrint()
     Run() error
 }
+
+type Flags struct {}
