@@ -118,8 +118,8 @@ func (api *ZabbixAPI) request(method string, params interface{}) (JsonRPCRespons
     return res, nil
 }
 
-func (api *ZabbixAPI) UserGroupGet(params interface{}) ([]map[string]string, error) {
-    rsp, err := api.request("usergroup.get", params)
+func (api *ZabbixAPI) UserGet(params interface{}) ([]map[string]string, error) {
+    rsp, err := api.request("user.create", params)
     if err != nil {
         return nil, err
     }
@@ -128,10 +128,10 @@ func (api *ZabbixAPI) UserGroupGet(params interface{}) ([]map[string]string, err
     }
 
     var ret []map[string]string
-    res, err := json.Marshal(rsp.Result)
+    res ,err := json.Marshal(rsp.Result)
     err = json.Unmarshal(res, &ret)
 
-    return ret, nil
+    return ret, err
 }
 
 func (api *ZabbixAPI) UserCreate(params interface{}) (map[string]string, error) {
@@ -147,7 +147,38 @@ func (api *ZabbixAPI) UserCreate(params interface{}) (map[string]string, error) 
     res, err := json.Marshal(rsp.Result)
     err = json.Unmarshal(res, &ret)
 
-    return ret, nil
+    return ret, err
 }
 
-func (api *ZabbixAPI) UserDelete(params interface{}) 
+func (api *ZabbixAPI) UserDelete(params interface{}) (map[string]map[string][]string, error) {
+    rsp, err := api.request("user.create", params)
+    if err != nil {
+        return nil, err
+    }
+    if rsp.Error.Code != 0 {
+        return nil, errors.New(rsp.Error.Data)
+    }
+
+    var ret map[string]map[string][]string
+    res, err := json.Marshal(rsp.Result)
+    err = json.Unmarshal(res, &ret)
+
+    return ret, err
+}
+
+func (api *ZabbixAPI) UsergroupGet(params interface{}) ([]map[string]string, error) {
+    rsp, err := api.request("user.create", params)
+    if err != nil {
+        return nil, err
+    }
+    if rsp.Error.Code != 0 {
+        return nil, errors.New(rsp.Error.Data)
+    }
+
+    var ret []map[string]string
+    res, err := json.Marshal(rsp.Result)
+    err = json.Unmarshal(res, &ret)
+
+    return ret, err
+}
+

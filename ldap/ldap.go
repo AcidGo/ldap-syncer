@@ -314,14 +314,40 @@ func (l *LdapDst) generateOpDelete(rows []*lib.EntryRow) ([]*ldaplib.DelRequest,
     return reqList, err
 }
 
-func (l *LdapDst) GetOpUpdate() OpUpdate {
-    return l.opUpdate
+func (l *LdapDst) GetInsert() ([]*ldaplib.Entry, error) {
+    var res []*ldaplib.Entry
+
+    for _, req := range l.opInsert {
+        m := make(map[string][]string)
+        for _, a := range req.Attributes {
+            m[a.Type] = a.Vals
+        }
+        e := ldaplib.NewEntry(req.DN, m)
+        res = append(res, e)
+    }
+
+    return res, nil
 }
 
-func (l *LdapDst) GetOpInsert() OpInsert {
-    return l.opInsert
-}
+func (l *LdapDst) GetDelete() ([]*ldaplib.Entry, error) {
+    var res []*ldaplib.Entry
 
-func (l *LdapDst) GetOpDelete() OpDelete {
-    return l.opDelete
+    for _, req := range l.opDelete {
+        searchRequest := ldaplib.NewSearchRequest(
+            req.DN,
+            ldaplib.ScopeWholeSubtree, ldaplib.NeverDerefAliases, 0, 0, false,
+            "(objectclass=*)",
+            []string{},
+            nil,
+        )
+
+        sr, err := l.conn.Search(searchRequest)
+        if err != nil {
+            return []*ldaplib.Entry{}, err
+        }
+
+        res = append(res, sr.Entries...)
+    }
+
+    return res, nil
 }
