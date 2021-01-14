@@ -26,7 +26,7 @@ var (
 
 var (
     setting = src_mysql.MySQLFlags{
-        ConnAddr:       flag.String("mysql-addr", "127.0.0.1:389", "MySQL listener to be connected"),
+        ConnAddr:       flag.String("mysql-addr", "127.0.0.1:3306", "MySQL listener to be connected"),
         Username:       flag.String("mysql-user", "", "MySQL connect user certificate"),
         Password:       flag.String("mysql-passwd", "", "MySQL connect user's password certificate"),
         TargetDB:       flag.String("mysql-db", "", "MySQL target database for working"),
