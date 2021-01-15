@@ -37,10 +37,10 @@ var (
 
     extraSetting = extra_zabbix.ZabbixFlags{
         URL:            flag.String("zabbix-url", "http://127.0.0.1", "Zabbix API URL"),
-        User:           flag.String("zabbix-user", "zabbix", "Zabbix API login user name")
-        Passwd:         flag.String("zabbix-passwd", "zabbix", "Zabbix API login password")
-        LdapSA:         flag.String("zabbix-ldapsa", "sn", "Zabbix user alias maps to LDAP serach attribute")
-        Usrgrps:        flag.String("zabbix-usrgrps", "Guests", "Zabbix user setting about user group, can set multi values like g1,g2,g3,...")
+        User:           flag.String("zabbix-user", "zabbix", "Zabbix API login user name"),
+        Passwd:         flag.String("zabbix-passwd", "zabbix", "Zabbix API login password"),
+        LdapSA:         flag.String("zabbix-ldapsa", "sn", "Zabbix user alias maps to LDAP serach attribute"),
+        Usrgrps:        flag.String("zabbix-usrgrps", "Guests", "Zabbix user setting about user group, can set multi values like g1,g2,g3,..."),
     }
 
     ldapAddr        = flag.String("ldap-addr", "127.0.0.1:389", "LDAP listener to be connected")
@@ -95,14 +95,6 @@ func main() {
     }
     usedObjectClass = strings.Split(*objectClass, ",")
 
-    if useExtra {
-        extra, err = NewZabbixExtra()
-        if err != nil {
-            log.Println("new a ZabbixExtra get an error")
-            log.Fatal(err)
-        }
-    }
-
     syncMap = utils.StrToSyncMap(*syncMapStr)
     lDst, err = ldap.NewLdapDst(*ldapAddr, *ldapBindDN, *ldapBindPasswd, *workingDn)
     if err != nil {
@@ -111,13 +103,6 @@ func main() {
     }
     defer lDst.Close()
     log.Printf("connecting LDAP addr %s is sucessful", *ldapAddr)
-
-
-    err = extra.BindLdap(lDst)
-    if err != nil {
-        log.Println("extra bind LDAP get an error")
-        log.Fatal(err)
-    }
 
     lDst.SetSyncMap(syncMap)
     log.Println("setten syncmap for dest LDAP")
@@ -142,11 +127,7 @@ func main() {
     }
     defer source.Close()
 
-    err = extra.BindSource(source)
-    if err != nil {
-        log.Println("extra bind source get an error")
-        log.Fatal(err)
-    }
+
 
     resPull, err = source.Pull(srcPk)
     if err != nil {
@@ -167,10 +148,39 @@ func main() {
         log.Fatal(err)
     }
 
-    if useExtra {
-        
-    }
+    if *useExtra {
+        extra, err = extra_zabbix.NewZabbixExtra()
+        if err != nil {
+            log.Println("new a ZabbixExtra get an error")
+            log.Fatal(err)
+        }
 
+        err = extra.BindLdap(lDst)
+        if err != nil {
+            log.Println("extra bind LDAP get an error")
+            log.Fatal(err)
+        }
+
+        err = extra.BindSource(source)
+        if err != nil {
+            log.Println("extra bind source get an error")
+            log.Fatal(err)
+        }
+
+        err = extra.BindLdap(lDst)
+        if err != nil {
+            log.Println("extra bind LDAP get an error")
+            log.Fatal(err)
+        }
+
+        err = extra.Parse(sourceSetting)
+        if err != nil {
+            log.Println("parsing extra is failed")
+            log.Fatal(err)
+        }
+
+        extra.ParsePrint()
+    }
 
     if *dryRun {
         log.Println("only with dry-run mode, no execute the parsing result")
@@ -185,5 +195,13 @@ func main() {
     }
     log.Println("syncing from dest to sourcer is sucessful")
 
-    log.Println("done ......")
+    log.Println("starting run extra ......")
+    err = extra.Run()
+    if err != nil {
+        log.Println("running extra is failed")
+        log.Fatal(err)
+    }
+    log.Println("runing extra is sucessful")
+
+    log.Println("done")
 }

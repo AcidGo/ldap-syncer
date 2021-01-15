@@ -6,7 +6,7 @@ import (
 )
 
 type Extrar interface {
-    BindSource(sources.sourcer) error
+    BindSource(sources.Sourcer) error
     BindLdap(*ldap.LdapDst) error
     Parse(interface{}) error
     ParsePrint()
