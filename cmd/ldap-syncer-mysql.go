@@ -41,6 +41,7 @@ var (
         Passwd:         flag.String("zabbix-passwd", "zabbix", "Zabbix API login password"),
         LdapSA:         flag.String("zabbix-ldapsa", "sn", "Zabbix user alias maps to LDAP serach attribute"),
         Usrgrps:        flag.String("zabbix-usrgrps", "Guests", "Zabbix user setting about user group, can set multi values like g1,g2,g3,..."),
+        WantDel:        flag.Bool("zabbix-wantdel", false, "Zabbix user wanting deleted can be deleted"),
     }
 
     ldapAddr        = flag.String("ldap-addr", "127.0.0.1:389", "LDAP listener to be connected")

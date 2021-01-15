@@ -6,4 +6,5 @@ type ZabbixFlags struct {
     Passwd      *string
     LdapSA      *string
     Usrgrps     *string
+    WantDel     *bool
 }

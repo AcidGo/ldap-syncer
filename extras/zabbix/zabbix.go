@@ -23,6 +23,7 @@ type ZabbixExtra struct {
     zapi            *ZabbixAPI
     ldapDst         *ldap.LdapDst
     ldapSA          string
+    wantDel         bool
     usrgrps         []map[string]string
     userCreate      []opUserCreate
     userDelete      []opUserDelete
@@ -55,6 +56,8 @@ func (ze *ZabbixExtra) Parse(i interface{}) error {
         return errors.New("LDAP search attribute is emtpy for zabbix")
     }
     ze.ldapSA = *f.LdapSA
+
+    ze.wantDel = *f.WantDel
 
     zapi, err := NewZabbixAPI(
         *f.URL,
@@ -102,10 +105,13 @@ func (ze *ZabbixExtra) Parse(i interface{}) error {
     if err != nil {
         return err
     }
+
     ze.userDelete = make([]opUserDelete, 0)
-    err = ze.generateUserDelete()
-    if err != nil {
-        return err
+    if ze.wantDel {
+        err = ze.generateUserDelete()
+        if err != nil {
+            return err
+        }
     }
 
     return nil
@@ -166,10 +172,12 @@ func (ze *ZabbixExtra) Run() error {
     }
 
     // working for delete user
-    for _, op := range ze.userDelete {
-        _, err = ze.zapi.UserDelete(op)
-        if err != nil {
-            return fmt.Errorf("get an error when delete user %v: %v", op, err)
+    if ze.wantDel {
+        for _, op := range ze.userDelete {
+            _, err = ze.zapi.UserDelete(op)
+            if err != nil {
+                return fmt.Errorf("get an error when delete user %v: %v", op, err)
+            }
         }
     }
 
