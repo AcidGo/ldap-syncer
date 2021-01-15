@@ -28,7 +28,7 @@ type ZabbixExtra struct {
     userDelete      []opUserDelete
 }
 
-func NewZabbixExtra(zURL, zUser, zPasswd string) (*ZabbixExtra, error) {
+func NewZabbixExtra() (*ZabbixExtra, error) {
     return &ZabbixExtra{}, nil
 }
 

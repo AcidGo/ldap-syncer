@@ -7,6 +7,8 @@ import (
     "os"
     "strings"
 
+    "github.com/AcidGo/ldap-syncer/extras/extra"
+    "github.com/AcidGo/ldap-syncer/extras/zabbix"
     "github.com/AcidGo/ldap-syncer/ldap"
     "github.com/AcidGo/ldap-syncer/lib"
     "github.com/AcidGo/ldap-syncer/sources/mysql"
@@ -25,12 +27,20 @@ var (
 )
 
 var (
-    setting = src_mysql.MySQLFlags{
+    sourceSetting = src_mysql.MySQLFlags{
         ConnAddr:       flag.String("mysql-addr", "127.0.0.1:3306", "MySQL listener to be connected"),
         Username:       flag.String("mysql-user", "", "MySQL connect user certificate"),
         Password:       flag.String("mysql-passwd", "", "MySQL connect user's password certificate"),
         TargetDB:       flag.String("mysql-db", "", "MySQL target database for working"),
         TargetTable:    flag.String("mysql-tb", "", "MySQL target table for working"),
+    }
+
+    extraSetting = extra_zabbix.ZabbixFlags{
+        URL:            flag.String("zabbix-url", "http://127.0.0.1", "Zabbix API URL"),
+        User:           flag.String("zabbix-user", "zabbix", "Zabbix API login user name")
+        Passwd:         flag.String("zabbix-passwd", "zabbix", "Zabbix API login password")
+        LdapSA:         flag.String("zabbix-ldapsa", "sn", "Zabbix user alias maps to LDAP serach attribute")
+        Usrgrps:        flag.String("zabbix-usrgrps", "Guests", "Zabbix user setting about user group, can set multi values like g1,g2,g3,...")
     }
 
     ldapAddr        = flag.String("ldap-addr", "127.0.0.1:389", "LDAP listener to be connected")
@@ -41,12 +51,14 @@ var (
     syncMapStr      = flag.String("sync-map", "", "attributes mapping when sync to LDAP")
     pkMapStr        = flag.String("pk-map", "", "specified key field for selecting row")
     workingDn       = flag.String("dn", "", "into specified LDAP DN for workspace")
+    useExtra        = flag.Bool("extra", false, "use extra module for working, now only support zabbix extra module")
     dryRun          = flag.Bool("dry-run", false, "dry-run mode, only print parsing result, not really execute")
 )
 
 var (
     lDst            *ldap.LdapDst
     source          sources.Sourcer
+    extra           extras.Extrar
     usedObjectClass []string
     srcPk           string
     dstPk           string
@@ -72,14 +84,24 @@ Options:
 func main() {
     flag.Usage = flagUsage
     flag.Parse()
+
     if *ldapBindDN == "" || *ldapBindPasswd == "" || *pkMapStr == "" || *workingDn == "" {
         log.Fatal("the args is invalid")
     }
+
     srcPk, dstPk = utils.StrToSyncPk(*pkMapStr)
     if srcPk == "" || dstPk == "" {
         log.Fatalf("srcPk %s or dstPk %s is invalid\n", srcPk, dstPk)
     }
     usedObjectClass = strings.Split(*objectClass, ",")
+
+    if useExtra {
+        extra, err = NewZabbixExtra()
+        if err != nil {
+            log.Println("new a ZabbixExtra get an error")
+            log.Fatal(err)
+        }
+    }
 
     syncMap = utils.StrToSyncMap(*syncMapStr)
     lDst, err = ldap.NewLdapDst(*ldapAddr, *ldapBindDN, *ldapBindPasswd, *workingDn)
@@ -89,6 +111,13 @@ func main() {
     }
     defer lDst.Close()
     log.Printf("connecting LDAP addr %s is sucessful", *ldapAddr)
+
+
+    err = extra.BindLdap(lDst)
+    if err != nil {
+        log.Println("extra bind LDAP get an error")
+        log.Fatal(err)
+    }
 
     lDst.SetSyncMap(syncMap)
     log.Println("setten syncmap for dest LDAP")
@@ -106,12 +135,18 @@ func main() {
     source = new(src_mysql.MySQLSrc)
     source.SetSyncMap(syncMap)
     log.Println("setten syncmap for sourcer")
-    err = source.Open(setting)
+    err = source.Open(sourceSetting)
     if err != nil {
         log.Println("opening source is failed")
         log.Fatal(err)
     }
     defer source.Close()
+
+    err = extra.BindSource(source)
+    if err != nil {
+        log.Println("extra bind source get an error")
+        log.Fatal(err)
+    }
 
     resPull, err = source.Pull(srcPk)
     if err != nil {
@@ -131,6 +166,11 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
+
+    if useExtra {
+        
+    }
+
 
     if *dryRun {
         log.Println("only with dry-run mode, no execute the parsing result")
