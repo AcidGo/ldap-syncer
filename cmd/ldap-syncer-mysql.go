@@ -173,7 +173,7 @@ func main() {
             log.Fatal(err)
         }
 
-        err = extra.Parse(sourceSetting)
+        err = extra.Parse(extraSetting)
         if err != nil {
             log.Println("parsing extra is failed")
             log.Fatal(err)
